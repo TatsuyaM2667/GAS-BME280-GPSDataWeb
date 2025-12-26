@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<!-- Leaflet JavaScript -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #333;
+    min-height: 100vh;
+  }
+  h1 {
+    text-align: center;
+    color: white;
+    margin-bottom: 10px;
+    font-size: 2.5rem;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  }
+  .status {
+    text-align: center;
+    margin-bottom: 20px;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: bold;
+  }
+  .status.online {
+    background-color: rgba(40, 167, 69, 0.8);
+    color: white;
+  }
+  .status.offline {
+    background-color: rgba(220, 53, 69, 0.8);
+    color: white;
+  }
+  .status.loading {
+    background-color: rgba(255, 193, 7, 0.8);
+    color: white;
+  }
+  #main-content {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  #left-panel {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  #right-panel {
+    flex: 2;
+    min-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  #data-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+  }
+  .card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 25px;
+    text-align: center;
+    min-width: 180px;
+    flex: 1 1 calc(50% - 20px); /* 2 columns for cards */
+    transition: transform 0.3s ease;
+  }
+  .card:hover {
+    transform: translateY(-5px);
+  }
+  .card .label {
+    font-size: 1.1rem;
+    color: #666;
+    margin-bottom: 10px;
+  }
+  .card .value {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 5px;
+    word-break: break-all;
+  }
+  .card .unit {
+    font-size: 1.2rem;
+    color: #7f8c8d;
+  }
+  #timestamp {
+    text-align: center;
+    margin-bottom: 30px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1rem;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+  }
+  .map-section {
+    width: 100%; /* Ensure map takes full width of its container */
+  }
+  .map-container {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  .map-title {
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 15px;
+  }
+  #map {
+    height: 400px;
+    width: 100%;
+    border-radius: 8px;
+    border: 2px solid #e0e0e0;
+  }
+  .map-legend {
+    background: rgba(255, 255, 255, 0.9);
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    margin-top: 10px;
+    font-size: 0.9em;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    margin: 5px 0;
+  }
+  .legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    margin-right: 8px;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .legend-color.current {
+    background-color: #e74c3c;
+  }
+  .legend-color.historical {
+    background-color: #3498db;
+  }
+  .charts-section {
+    width: 100%; /* Ensure charts take full width of their container */
+  }
+  .chart-container {
+    background: rgba(255, 255, 255, 0.95);
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    flex: 1 1 100%; /* Each chart takes full width of right panel */
+    min-width: 300px;
+  }
+  .chart-title {
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #2c3e50;
+    margin-bottom: 15px;
+  }
+  .chart-canvas {
+    height: 250px !important;
+  }
+  .error-message {
+    background-color: rgba(220, 53, 69, 0.9);
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 600px;
+    text-align: center;
+  }
+  @media (max-width: 768px) {
+    #main-content {
+      flex-direction: column;
+    }
+    #left-panel, #right-panel {
+      min-width: unset;
+      width: 100%;
+    }
+    .card {
+      flex: 1 1 100%; /* Stack cards on small screens */
+    }
+    #map {
+      height: 300px;
+    }
+  }
+  /* Loader CSS */
+   .loader-container {
+       display: flex;
+       justify-content: center;
+       align-items: center;
+       padding: 20px;
+       /* Initially hidden */
+       display: none;
+   }
+  .loader {
+    width: 70px;
+    aspect-ratio: 1;
+    background:
+      radial-gradient(farthest-side,#ffa516 90%,#0000) center/16px 16px,
+      radial-gradient(farthest-side,green   90%,#0000) bottom/12px 12px;
+    background-repeat: no-repeat;
+    animation: l17 1s infinite linear;
+    position: relative;
+  }
+  .loader::before {    
+    content:"";
+    position: absolute;
+    width: 8px;
+    aspect-ratio: 1;
+    inset: auto 0 16px;
+    margin: auto;
+    background: #ccc;
+    border-radius: 50%;
+    transform-origin: 50% calc(100% + 10px);
+    animation: inherit;
+    animation-duration: 0.5s;
+  }
+  @keyframes l17 {
+    100%{transform: rotate(1turn)}
+  }
+  /* Weather Forecast Specific Styles */
+  .weather-forecast-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); /* Responsive grid for weather cards */
+    gap: 15px;
+    margin-top: 20px;
+    justify-content: center;
+  }
+  .weather-card {
+    background: rgba(240, 240, 240, 0.7);
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, background-color 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  .weather-card:hover {
+    transform: translateY(-3px);
+    background-color: rgba(255, 255, 255, 0.9);
+  }
+  .weather-time {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #34495e;
+    margin-bottom: 8px;
+  }
+  .weather-icon {
+    width: 50px;
+    height: 50px;
+    margin: 0 auto 8px;
+    display: block;
+  }
+  .weather-temp {
+    font-size: 1.6rem;
+    font-weight: bold;
+    color: #e67e22;
+    margin-bottom: 5px;
+  }
+  .weather-desc {
+    font-size: 0.9rem;
+    color: #7f8c8d;
+    min-height: 20px; /* To prevent layout shift when description loads */
+  }
+  .loading-weather {
+    opacity: 0.6;
+    background-color: rgba(230, 230, 230, 0.5);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<h1>🌡️ 環境データ監視システム</h1>
+<div id="status" class="status loading">🔄 オフライン</div>
+<p id="timestamp">データ取得中...</p>
+<div id="loader-container" class="loader-container">
+   <div class="loader"></div>
+</div>
+
+<div id="main-content">
+  <div id="left-panel">
+    <div id="data-container">
+      <div class="card">
+        <div class="label">🌡️ 温度</div>
+        <div class="value" id="temperature">--</div>
+        <div class="unit">°C</div>
+      </div>
+      <div class="card">
+        <div class="label">💧 湿度</div>
+        <div class="value" id="humidity">--</div>
+        <div class="unit">%</div>
+      </div>
+      <div class="card">
+        <div class="label">💨 気圧</div>
+        <div class="value" id="pressure">--</div>
+        <div class="unit">hPa</div>
+      </div>
+      <div class="card">
+        <div class="label">📍 位置情報</div>
+        <div class="value" id="location" style="font-size: 1.2rem;">--</div>
+        <div class="unit">lat, lng</div>
+      </div>
+    </div>
+    <!-- 地図セクション -->
+    <div class="map-section">
+      <div class="map-container">
+        <div class="map-title">📍 位置情報</div>
+        <div id="map"></div>
+        <div class="map-legend">
+          <div class="legend-item">
+            <div class="legend-color current"></div>
+            <span>🔴 最新データ</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color historical"></div>
+            <span>🔵 過去のデータ</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="right-panel">
+    <div class="charts-section">
+      <div class="chart-container">
+        <div class="chart-title">🌡️ 温度推移</div>
+        <canvas id="temperatureChart" class="chart-canvas"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">💧 湿度推移</div>
+        <canvas id="humidityChart" class="chart-canvas"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">💨 気圧推移</div>
+        <canvas id="pressureChart" class="chart-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- 気象予報セクション -->
+    <div class="weather-section charts-section">
+      <div class="chart-container">
+        <div class="chart-title">☀️ 時間ごとの天気予報</div>
+        <div id="weather-forecast-container" class="weather-forecast-grid">
+          <!-- Weather cards will be inserted here by JavaScript -->
+          <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+          </div>
+          <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+          </div>
+          <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+          </div>
+          <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+          </div>
+          <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+          </div>
+          <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+          </div>
+          <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+          </div>
+          <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+          </div>
+        </div>
+        <div id="weather-error" class="error-message" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="error-container"></div>
+
+<script>
+let temperatureChart;
+let humidityChart;
+let pressureChart;
+let map;
+let currentMarker;
+let historicalMarkers = [];
+let isOnline = false;
+let currentLatitude = null;
+let currentLongitude = null;
+
+  // Initialize the map
+function initializeMap() {
+    // Default location (Tokyo)
+  const defaultLat = 35.6762;
+  const defaultLng = 139.6503;
+  map = L.map('map').setView([defaultLat, defaultLng], 13);
+   // OpenStreetMap Tile Layer
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19
+  }).addTo(map);
+}
+
+  // Display historical markers on the map
+function updateHistoricalMarkers(allData) {
+  historicalMarkers.forEach(marker => {
+    map.removeLayer(marker);
+  });
+  historicalMarkers = [];
+  if (!allData || allData.length === 0) return;
+  const validLocationData = allData.filter(data => {
+    const lat = parseFloat(data.latitude);
+    const lng = parseFloat(data.longitude);
+    return !isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0;
+  });
+  if (validLocationData.length === 0) return;
+  validLocationData.slice(0, -1).forEach((data, index) => {
+    const lat = parseFloat(data.latitude);
+    const lng = parseFloat(data.longitude);
+    const historicalMarker = L.circleMarker([lat, lng], {
+      color: '#3498db',
+      fillColor: '#3498db',
+      fillOpacity: 0.6,
+      radius: 6,
+      weight: 2
+    }).addTo(map);
+    const popupContent = `
+      <div style="text-align: center; min-width: 180px;">
+        <h4 style="margin: 0 0 8px 0; color: #3498db;">📍 履歴データ #${index + 1}</h4>
+        <div style="margin: 3px 0; font-size: 0.9em;">
+          <strong>🌡️ 温度:</strong> ${data.temperature !== null && data.temperature !== undefined ? String(data.temperature) + '°C' : '--'}
+        </div>
+        <div style="margin: 3px 0; font-size: 0.9em;">
+          <strong>💧 湿度:</strong> ${data.humidity !== null && data.humidity !==
+undefined ? String(data.humidity) + '%' : '--'}
+        </div>
+        <div style="margin: 3px 0; font-size: 0.9em;">
+          <strong>💨 気圧:</strong> ${data.pressure !== null && data.pressure !== undefined ?
+String(data.pressure) + 'hPa' : '--'}
+        </div>
+        <div style="margin: 8px 0 0 0; font-size: 0.8em; color: #666;">
+          <strong>📍 座標:</strong><br>
+          ${lat.toFixed(6)}, ${lng.toFixed(6)}
+        </div>
+        <div style="margin: 3px 0 0 0; font-size: 0.7em; color: #888;">
+          ${data.timestamp ||
+''}
+        </div>
+      </div>
+    `;
+    historicalMarker.bindPopup(popupContent);
+    historicalMarkers.push(historicalMarker);
+  });
+  if (validLocationData.length > 0) {
+    const group = new L.featureGroup(historicalMarkers);
+    if (currentMarker) {
+      group.addLayer(currentMarker);
+    }
+    if (validLocationData.length === 1) {
+      const lat = parseFloat(validLocationData[0].latitude);
+      const lng = parseFloat(validLocationData[0].longitude);
+      map.setView([lat, lng], 15);
+    } else if (group.getLayers().length > 0) {
+      map.fitBounds(group.getBounds().pad(0.1));
+    }
+  }
+}
+
+// Function to show the loader
+function showLoader() {
+   document.getElementById('loader-container').style.display = 'flex'; // Show loader
+   // Removed: document.getElementById('data-container').style.display = 'none'; // Hide data
+   document.getElementById('error-container').style.display = 'none'; // Hide errors
+   document.getElementById('status').classList.remove('online', 'offline');
+   document.getElementById('status').classList.add('loading');
+   document.getElementById('status').textContent = '🔄 データ読み込み中...';
+   document.getElementById('timestamp').textContent =  'データ取得中...' ;
+}
+
+// Function to hide the loader
+function hideLoader() {
+   document.getElementById('loader-container').style.display = 'none'; // Hide loader
+   // Removed: document.getElementById('data-container').style.display = 'flex'; // Show data
+}
+
+// Function to display error
+function displayError(message) {
+   hideLoader(); // Hide loader even on error
+   const errorContainer = document.getElementById('error-container');
+   errorContainer.innerHTML =  `<div class="error-message">エラー:  ${message}</div>`;
+   document.getElementById('status').classList.remove('online', 'loading');
+   document.getElementById('status').classList.add('offline');
+   document.getElementById('status').textContent =  'オフライン' ;
+}
+
+// Update UI with latest data
+function updateUI(data) {
+   hideLoader(); // Hide loader when data is received
+   document.getElementById('error-container').innerHTML = ''; // Clear any previous errors
+
+   if (data.error) {
+       displayError(data.error);
+       return;
+   }
+
+   isOnline = true;
+   document.getElementById('status').classList.remove('offline', 'loading');
+   document.getElementById('status').classList.add('online');
+   document.getElementById('status').textContent = '🟢 オンライン';
+
+   document.getElementById('temperature').textContent = data.temperature !== 0 ? data.temperature.toFixed(1) : '--';
+   document.getElementById('humidity').textContent = data.humidity !== 0 ? data.humidity.toFixed(1) : '--';
+   document.getElementById('pressure').textContent = data.pressure !== 0 ? data.pressure.toFixed(1) : '--';
+
+   currentLatitude = data.latitude;
+   currentLongitude = data.longitude;
+
+   if (currentLatitude !== 0 && currentLongitude !== 0) {
+       document.getElementById('location').textContent = `${currentLatitude.toFixed(4)}, ${currentLongitude.toFixed(4)}`;
+       if (!map) {
+           initializeMap();
+       }
+       updateMap(currentLatitude, currentLongitude, data);
+       fetchWeatherForecast(); // Call weather forecast fetch here
+   } else {
+       document.getElementById('location').textContent = '--';
+       if (map) {
+            // If no valid location, remove current marker and reset map view if needed
+           if (currentMarker) {
+               map.removeLayer(currentMarker);
+               currentMarker = null;
+           }
+           // Optionally set to a default view if there are no historical markers either
+           if (historicalMarkers.length === 0) {
+               map.setView([35.6762, 139.6503], 13); // Default Tokyo
+           }
+       }
+       // If no valid location, display an error for weather forecast too
+       const weatherErrorContainer = document.getElementById('weather-error');
+       weatherErrorContainer.textContent = "位置情報が利用できません。天気予報を表示できません。";
+       weatherErrorContainer.style.display = 'block';
+       document.getElementById('weather-forecast-container').innerHTML = ''; // Clear weather cards
+   }
+
+   document.getElementById('timestamp').textContent =  `最終更新:  ${data.timestamp}`;
+}
+
+// Update map with current location
+function updateMap(lat, lng, data) {
+   if (currentMarker) {
+       map.removeLayer(currentMarker);
+   }
+   currentMarker = L.circleMarker([lat, lng], {
+       color: '#e74c3c',
+       fillColor: '#e74c3c',
+       fillOpacity: 0.8,
+       radius: 8,
+       weight: 3
+   }).addTo(map);
+
+   const popupContent = `
+       <div style="text-align: center; min-width: 180px;">
+           <h4 style="margin: 0 0 8px 0; color: #e74c3c;">📍 最新データ</h4>
+           <div style="margin: 3px 0; font-size: 0.9em;">
+               <strong>🌡️ 温度:</strong> ${data.temperature !== null && data.temperature !== undefined ? String(data.temperature) + '°C' : '--'}
+           </div>
+           <div style="margin: 3px 0; font-size: 0.9em;">
+               <strong>💧 湿度:</strong> ${data.humidity !== null && data.humidity !== undefined ? String(data.humidity) + '%' : '--'}
+           </div>
+           <div style="margin: 3px 0; font-size: 0.9em;">
+               <strong>💨 気圧:</strong> ${data.pressure !== null && data.pressure !== undefined ? String(data.pressure) + 'hPa' : '--'}
+           </div>
+           <div style="margin: 8px 0 0 0; font-size: 0.8em; color: #666;">
+               <strong>📍 座標:</strong><br>
+               ${lat.toFixed(6)}, ${lng.toFixed(6)}
+           </div>
+           <div style="margin: 3px 0 0 0; font-size: 0.7em; color: #888;">
+               ${data.timestamp || ''}
+           </div>
+       </div>
+   `;
+   currentMarker.bindPopup(popupContent).openPopup();
+   map.setView([lat, lng], 15);
+}
+
+// Fetch latest data from backend
+function fetchLatestData() {
+   showLoader(); // Show loader when fetching data
+   google.script.run
+       .withSuccessHandler(updateUI)
+       .withFailureHandler(displayError)
+       .getLatestData();
+}
+
+// Fetch chart data from backend
+function fetchChartData() {
+   google.script.run
+       .withSuccessHandler(updateCharts)
+       .withFailureHandler(error => console.error("Error fetching chart data:", error))
+       .getChartData();
+}
+
+// Initialize or update Chart.js chart
+function createOrUpdateChart(chartId, chartType, label, data, borderColor, backgroundColor, chartInstance) {
+   const ctx = document.getElementById(chartId).getContext('2d');
+   const chartConfig = {
+       type: chartType,
+       data: {
+           labels: data.map(d => d.timestamp),
+           datasets: [{
+               label: label,
+               data: data.map(d => d.value),
+               borderColor: borderColor,
+               backgroundColor: backgroundColor,
+               tension: 0.1,
+               fill: false
+           }]
+       },
+       options: {
+           responsive: true,
+           maintainAspectRatio: false,
+           scales: {
+               x: {
+                   type: 'category', // Use 'category' for string labels
+                   title: {
+                       display: true,
+                       text:  '時間'
+                   }
+               },
+               y: {
+                   title: {
+                       display: true,
+                       text: label
+                   }
+               }
+           },
+           plugins: {
+               legend: {
+                   display: true,
+                   position: 'top'
+               }
+           }
+       }
+   };
+
+   if (chartInstance) {
+       chartInstance.data = chartConfig.data;
+       chartInstance.options = chartConfig.options;
+       chartInstance.update();
+   } else {
+       chartInstance = new Chart(ctx, chartConfig);
+   }
+   return chartInstance;
+}
+
+// Update charts
+function updateCharts(chartData) {
+   const labels = chartData.map(d => d.timestamp);
+   const temperatures = chartData.map(d => d.temperature);
+   const humidities = chartData.map(d => d.humidity);
+   const pressures = chartData.map(d => d.pressure);
+
+   temperatureChart = createOrUpdateChart(
+       'temperatureChart', 'line',  '温度 (°C)' ,
+       labels.map((ts, i) => ({ timestamp: ts, value: temperatures[i] })),
+       'rgba(255, 99, 132, 1)', 'rgba(255, 99, 132, 0.2)',
+       temperatureChart
+   );
+
+   humidityChart = createOrUpdateChart(
+       'humidityChart', 'line',  '湿度 (%)' ,
+       labels.map((ts, i) => ({ timestamp: ts, value: humidities[i] })),
+       'rgba(54, 162, 235, 1)', 'rgba(54, 162, 235, 0.2)',
+       humidityChart
+   );
+
+   pressureChart = createOrUpdateChart(
+       'pressureChart', 'line',  '気圧 (hPa)' ,
+       labels.map((ts, i) => ({ timestamp: ts, value: pressures[i] })),
+       'rgba(75, 192, 192, 1)', 'rgba(75, 192, 192, 0.2)',
+       pressureChart
+   );
+    // Update historical markers after charts are updated and data is available
+   updateHistoricalMarkers(chartData);
+}
+
+// New function to fetch weather forecast
+function fetchWeatherForecast() {
+    const weatherForecastContainer = document.getElementById('weather-forecast-container');
+    const weatherErrorContainer = document.getElementById('weather-error');
+
+    // Show loading state for weather cards
+    weatherForecastContainer.innerHTML = `
+        <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+        </div>
+        <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+        </div>
+        <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+        </div>
+        <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+        </div>
+        <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+        </div>
+        <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+        </div>
+        <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+        </div>
+        <div class="weather-card loading-weather">
+            <div class="weather-time">--:--</div>
+            <img src="https://openweathermap.org/img/wn/01d.png" alt="天気アイコン" class="weather-icon"/>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-desc">読み込み中...</div>
+        </div>
+    `;
+    weatherErrorContainer.style.display = 'none';
+
+    // Check if latitude and longitude are available
+    if (currentLatitude !== null && currentLongitude !== null && currentLatitude !== 0 && currentLongitude !== 0) {
+        google.script.run
+            .withSuccessHandler(displayWeatherForecast)
+            .withFailureHandler(error => {
+                console.error("Error fetching weather data:", error);
+                weatherErrorContainer.textContent = `天気予報の取得に失敗しました: ${error.message || error}`;
+                weatherErrorContainer.style.display = 'block';
+                weatherForecastContainer.innerHTML = ''; // Clear loading cards on error
+            })
+            .getWeatherForecast(currentLatitude, currentLongitude);
+    } else {
+        weatherErrorContainer.textContent = "位置情報が利用できません。天気予報を表示できません。";
+        weatherErrorContainer.style.display = 'block';
+        weatherForecastContainer.innerHTML = ''; // Clear loading cards
+    }
+}
+
+// New function to display weather forecast
+function displayWeatherForecast(response) {
+    const weatherForecastContainer = document.getElementById('weather-forecast-container');
+    const weatherErrorContainer = document.getElementById('weather-error');
+    weatherForecastContainer.innerHTML = ''; // Clear previous forecasts
+    weatherErrorContainer.style.display = 'none';
+
+    if (response.error) {
+        weatherErrorContainer.textContent = `天気予報の取得に失敗しました: ${response.error}`;
+        weatherErrorContainer.style.display = 'block';
+        return;
+    }
+
+    if (response.forecast && response.forecast.length > 0) {
+        response.forecast.forEach(item => {
+            const weatherCard = document.createElement('div');
+            weatherCard.className = 'weather-card';
+            // OpenWeatherMapアイコンのURLは、アイコンコードと@2x.pngで構成されます。
+            // 例: https://openweathermap.org/img/wn/10d@2x.png
+            weatherCard.innerHTML = `
+                <div class="weather-time">${item.time}</div>
+                <img src="https://openweathermap.org/img/wn/${item.icon}@2x.png" alt="${item.description}" class="weather-icon"/>
+                <div class="weather-temp">${item.temperature.toFixed(0)}°C</div>
+                <div class="weather-desc">${item.description}</div>
+            `;
+            weatherForecastContainer.appendChild(weatherCard);
+        });
+    } else {
+        weatherErrorContainer.textContent = "天気予報データがありません。";
+        weatherErrorContainer.style.display = 'block';
+    }
+}
+
+ // Initial data fetch on load
+document.addEventListener('DOMContentLoaded', () => {
+  fetchLatestData();
+  fetchChartData();
+  // Set up interval for refreshing data every 30 seconds
+  setInterval(() => {
+    fetchLatestData();
+    fetchChartData();
+  }, 30000);
+});
+
+</script>
+</body>
+</html>
